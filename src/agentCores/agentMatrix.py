@@ -38,60 +38,88 @@ Date: 2024-12-11
 License: MIT
 """
 
-import sqlite3
+from pymongo import MongoClient
 import json
-from typing import Optional, Dict, Any
-from pathlib import Path
+from typing import Optional, Dict
+import time
 
 class agentMatrix:
-    """Storage implementation for agent cores using SQLite."""
-    def __init__(self, db_path: str = "agent_matrix.db"):
-        """Initialize the agent matrix storage."""
-        self.db_path = db_path
-        self._init_db()
-
-    def _init_db(self):
-        """Initialize the SQLite database with the agent_cores table."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS agent_cores (
-                    agent_id TEXT,
-                    core_data TEXT,
-                    save_date TEXT,
-                    uid TEXT UNIQUE,
-                    version INTEGER,
-                    PRIMARY KEY (agent_id, uid)
-                )
-            """)
+    """MongoDB implementation of agent matrix storage."""
+    def __init__(self, connection_uri: str = "mongodb://localhost:27017/"):
+        """Initialize MongoDB connection and collections."""
+        self.client = MongoClient(connection_uri)
+        self.db = self.client.agentCores
+        
+        # Initialize collections
+        self.agent_cores = self.db.agent_cores
+        self.templates = self.db.templates
+        self.design_patterns = self.db.design_patterns
+        
+        # Create indexes
+        self.agent_cores.create_index("agent_id", unique=True)
+        self.templates.create_index("template_id", unique=True)
+        self.design_patterns.create_index("pattern_id", unique=True)
 
     def upsert(self, documents: list, ids: list, metadatas: list = None) -> None:
-        """Store agent core(s) in matrix."""
-        with sqlite3.connect(self.db_path) as conn:
-            for idx, (doc, id_) in enumerate(zip(documents, ids)):
-                metadata = metadatas[idx] if metadatas else {'save_date': None}
-                conn.execute(
-                    "INSERT OR REPLACE INTO agent_cores (agent_id, core_data, save_date) VALUES (?, ?, ?)",
-                    (id_, doc, metadata.get('save_date'))
-                )
+        """Store agent core(s) in MongoDB."""
+        for idx, (doc, id_) in enumerate(zip(documents, ids)):
+            metadata = metadatas[idx] if metadatas else {'save_date': None}
+            
+            # Always serialize to JSON string for storage
+            core_data = json.dumps(doc)
+            
+            self.agent_cores.update_one(
+                {"agent_id": id_},
+                {
+                    "$set": {
+                        "core_data": core_data,
+                        "save_date": metadata.get('save_date'),
+                        "last_updated": time.time()
+                    }
+                },
+                upsert=True
+            )
 
     def get(self, ids: Optional[list] = None) -> Dict:
-        """Retrieve agent core(s) from matrix."""
-        with sqlite3.connect(self.db_path) as conn:
-            if ids:
-                placeholders = ','.join('?' * len(ids))
-                query = f"SELECT agent_id, core_data, save_date FROM agent_cores WHERE agent_id IN ({placeholders})"
-                results = conn.execute(query, ids).fetchall()
-            else:
-                results = conn.execute("SELECT agent_id, core_data, save_date FROM agent_cores").fetchall()
-
-            return {
-                "ids": [r[0] for r in results],
-                "documents": [r[1] for r in results],
-                "metadatas": [{"agent_id": r[0], "save_date": r[2]} for r in results]
-            }
+        """Retrieve agent core(s) from MongoDB."""
+        query = {"agent_id": {"$in": ids}} if ids else {}
+        results = list(self.agent_cores.find(query))
+        
+        return {
+            "ids": [r["agent_id"] for r in results],
+            # Always parse stored JSON strings
+            "documents": [json.loads(r["core_data"]) for r in results],
+            "metadatas": [{"agent_id": r["agent_id"], "save_date": r["save_date"]} 
+                        for r in results]
+        }
 
     def delete(self, ids: list) -> None:
-        """Remove agent core(s) from matrix."""
-        with sqlite3.connect(self.db_path) as conn:
-            placeholders = ','.join('?' * len(ids))
-            conn.execute(f"DELETE FROM agent_cores WHERE agent_id IN ({placeholders})", ids)
+        """Remove agent core(s) from MongoDB."""
+        self.agent_cores.delete_many({"agent_id": {"$in": ids}})
+            
+    def store_template(self, template_name: str, template_data: Dict, metadata: Dict = None) -> str:
+        """Store a template in MongoDB."""
+        import hashlib
+        template_id = hashlib.sha256(
+            json.dumps(template_data, sort_keys=True).encode()
+        ).hexdigest()[:8]
+        
+        self.templates.update_one(
+            {"template_id": template_id},
+            {
+                "$set": {
+                    "template_name": template_name,
+                    "template_data": template_data,
+                    "origin_source": "user_defined",
+                    "origin_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "metadata": metadata or {}
+                }
+            },
+            upsert=True
+        )
+        return template_id
+
+    def get_template(self, template_name: str) -> Optional[Dict]:
+        """Retrieve a template by name."""
+        result = self.templates.find_one({"template_name": template_name})
+        return result["template_data"] if result else None
