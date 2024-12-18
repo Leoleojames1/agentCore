@@ -33,7 +33,7 @@ Example:
     ```
 
 Author: Leo Borcherding
-Version: 0.1.0
+Version: 0.2.1
 Date: 2024-12-11
 License: MIT
 """
