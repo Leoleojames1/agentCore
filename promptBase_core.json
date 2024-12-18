@@ -1,0 +1,42 @@
+{
+    "agentCore": {
+        "agent_id": "promptBase",
+        "version": 1,
+        "uid": "6f18aba0",
+        "save_state_date": "2024-12-11",
+        "models": {
+            "large_language_model": null,
+            "embedding_model": null,
+            "language_and_vision_model": null,
+            "yolo_model": null,
+            "whisper_model": null,
+            "voice_model": null
+        },
+        "prompts": {
+            "user_input_prompt": "",
+            "agentPrompts": {
+                "llmSystemPrompt": "You are a helpful llm assistant, designated with with fulling the user's request, the user is communicating with speech recognition and is sending their speech data over microphone, and it is being recognitize with speech to text andbeing sent to you, you will fullfill the request and answer the questions.",
+                "llmBoosterPrompt": "Here is the output from user please do your best to fullfill their request. ",
+                "visionSystemPrompt": null,
+                "visionBoosterPrompt": null
+            }
+        },
+        "commandFlags": {
+            "TTS_FLAG": true,
+            "STT_FLAG": false,
+            "CHUNK_FLAG": false,
+            "AUTO_SPEECH_FLAG": false,
+            "LLAVA_FLAG": true,
+            "SPLICE_FLAG": false,
+            "SCREEN_SHOT_FLAG": false,
+            "LATEX_FLAG": false,
+            "CMD_RUN_FLAG": false,
+            "AGENT_FLAG": true,
+            "MEMORY_CLEAR_FLAG": false
+        },
+        "conversation": {
+            "save_name": "defaultConversation",
+            "load_name": "defaultConversation"
+        }
+    }
+}

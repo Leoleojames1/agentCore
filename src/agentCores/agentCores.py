@@ -378,7 +378,8 @@ class agentCores:
                     "llmSystem": None,
                     "llmBooster": None,
                     "visionSystem": None,
-                    "visionBooster": None
+                    "visionBooster": None,
+                    "primeDirective": None
                 }
             }
         }
